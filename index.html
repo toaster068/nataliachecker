@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body {
+    background-color: #000000; 
+    font-family: "Tahoma", "Arial", sans-serif;
+    height: 100vh;
+    margin: 0;
+    overflow: hidden;
+    transition: background-color 0.1s;
+  }
+
+  .window {
+    width: 380px;
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    box-shadow: 4px 4px 15px rgba(0,0,0,0.8);
+    padding: 2px;
+    position: absolute;
+    z-index: 10;
+  }
+
+  .title-bar {
+    background: linear-gradient(90deg, #000080, #1084d0);
+    color: white;
+    padding: 3px 10px;
+    font-weight: bold;
+    font-size: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: grab;
+  }
+
+  .content {
+    padding: 15px;
+    display: flex;
+    gap: 15px;
+    align-items: center;
+  }
+
+  .character-box {
+    width: 110px;
+    height: 110px;
+    border: 2px inset #ffffff;
+    background: black;
+    overflow: hidden;
+  }
+
+  .character-box video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .form-side { flex: 1; font-size: 13px; color: #000; }
+  
+  input { 
+    width: 100%; 
+    margin-top: 10px;
+    margin-bottom: 10px; 
+    border: 2px inset #ffffff; 
+    padding: 5px; 
+    box-sizing: border-box; 
+  }
+  
+  button {
+    background: #c0c0c0;
+    border: 2px solid;
+    border-color: #ffffff #808080 #808080 #ffffff;
+    padding: 4px 15px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 5px;
+  }
+
+  @keyframes flicker {
+    0% { background-color: #000; }
+    50% { background-color: #600; }
+    100% { background-color: #000; }
+  }
+  .ominous-bg { animation: flicker 0.1s infinite; }
+</style>
+</head>
+<body>
+
+<div class="window" id="window1" style="top: 25%; left: 35%;">
+  <div class="title-bar" onmousedown="dragElement(this.parentElement)">
+    <span>Natalia_Checker.exe</span>
+    <span style="cursor:pointer" onclick="this.parentElement.parentElement.remove()">✕</span>
+  </div>
+  <div class="content">
+    <div class="character-box">
+      <video autoplay loop muted playsinline>
+        <source src="https://images-ext-1.discordapp.net/external/K1i7s03RDkjLS8SBQoEkSwUOqusPeQhVbxpzNjfwbcs/https/media.tenor.com/hgJ-SOZgCEsAAAPo/azusa-nakano-azusa.mp4" type="video/mp4">
+      </video>
+    </div>
+    <div class="form-side" id="formContent">
+      <p style="margin:0"><b>System Initializing...</b></p>
+      <button type="button" onclick="initApp(this)">Click to Start</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let inactivityTimer;
+  let crawlInterval;
+  let hasTriggeredOnce = false;
+  let windowCount = 1;
+
+  // --- UPDATED AUDIO ---
+  const happySound = new Audio('https://www.myinstants.com/media/sounds/anime-wow.mp3'); 
+  const buzzerSound = new Audio('https://www.myinstants.com/media/sounds/wrong-answer-buzzer.mp3');
+  const ominousSound = new Audio('https://actions.google.com/sounds/v1/horror/ambient_hum_horror.ogg');
+  ominousSound.loop = true;
+
+  const yesAnswers = ["yes", "yep", "yeah", "yea", "definitely", "100 percent", "100%", "y", "of course", "sure", "yipee"];
+  const noAnswers = ["no", "nope", "nah", "never", "n"];
+
+  function initApp(btn) {
+    const side = btn.parentElement;
+    side.innerHTML = `
+      <p style="margin:0"><b>Is Natalia a good girl?</b><br>(yes or no)</p>
+      <input type="text" class="answer-input" oninput="resetTimer()" placeholder="Answer here...">
+      <button type="button" onclick="checkAnswer(this)">Submit</button>
+    `;
+    resetTimer();
+  }
+
+  function checkAnswer(btn) {
+    const inputField = btn.parentElement.querySelector('input');
+    const input = inputField.value.toLowerCase().trim();
+    
+    if (yesAnswers.includes(input)) {
+      happySound.play();
+      ominousSound.pause();
+      alert("yipeeee thankyou");
+      clearTimeout(inactivityTimer);
+      clearInterval(crawlInterval);
+      document.body.classList.remove('ominous-bg');
+    } else if (noAnswers.includes(input)) {
+      // Play LOUD BUZZER then start the ominous music
+      buzzerSound.play();
+      setTimeout(() => { ominousSound.play(); }, 500);
+      
+      document.body.classList.add('ominous-bg');
+      
+      setTimeout(() => {
+        alert("wrong. prepare to die.");
+        spawnWindow(); 
+        startCrawling(); 
+      }, 500);
+    } else {
+      alert("Answer the question correctly!");
+    }
+  }
+
+  function resetTimer() {
+    clearTimeout(inactivityTimer);
+    const waitTime = hasTriggeredOnce ? 2000 : 4000;
+    inactivityTimer = setTimeout(spawnWindow, waitTime);
+  }
+
+  function spawnWindow() {
+    hasTriggeredOnce = true;
+    windowCount++;
+    const original = document.getElementById('window1');
+    if (!original) return;
+
+    const clone = original.cloneNode(true);
+    const randomTop = Math.floor(Math.random() * (window.innerHeight - 200));
+    const randomLeft = Math.floor(Math.random() * (window.innerWidth - 380));
+    
+    clone.id = "window" + windowCount;
+    clone.style.top = randomTop + "px";
+    clone.style.left = randomLeft + "px";
+    
+    const side = clone.querySelector('.form-side');
+    side.innerHTML = `
+      <p style="margin:0"><b>Is Natalia a good girl?</b></p>
+      <input type="text" oninput="resetTimer()">
+      <button type="button" onclick="checkAnswer(this)">Submit</button>
+    `;
+
+    document.body.appendChild(clone);
+    resetTimer();
+  }
+
+  function startCrawling() {
+    if (crawlInterval) return; 
+    crawlInterval = setInterval(() => {
+      const windows = document.querySelectorAll('.window');
+      const targetY = window.innerHeight / 2 - 100;
+      const targetX = window.innerWidth / 2 - 190;
+
+      windows.forEach(win => {
+        let curTop = parseInt(win.style.top);
+        let curLeft = parseInt(win.style.left);
+        if (curTop < targetY) win.style.top = (curTop + 1) + "px";
+        if (curTop > targetY) win.style.top = (curTop - 1) + "px";
+        if (curLeft < targetX) win.style.left = (curLeft + 1) + "px";
+        if (curLeft > targetX) win.style.left = (curLeft - 1) + "px";
+      });
+    }, 30);
+  }
+
+  function dragElement(elmnt) {
+    elmnt.onmousedown = (e) => {
+      if (e.target.closest('.title-bar')) {
+        let pos3 = e.clientX, pos4 = e.clientY;
+        document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
+        document.onmousemove = (e) => {
+          let pos1 = pos3 - e.clientX, pos2 = pos4 - e.clientY;
+          pos3 = e.clientX; pos4 = e.clientY;
+          elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+          elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+        };
+      }
+    };
+  }
+</script>
+
+</body>
+</html>
