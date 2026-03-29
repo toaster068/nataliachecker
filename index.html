@@ -3,7 +3,7 @@
 <head>
 <style>
   body {
-    background-color: #000000; 
+    background-color: #000; 
     font-family: "Tahoma", "Arial", sans-serif;
     height: 100vh;
     margin: 0;
@@ -16,7 +16,7 @@
     background: #c0c0c0;
     border: 2px solid;
     border-color: #ffffff #808080 #808080 #ffffff;
-    box-shadow: 4px 4px 15px rgba(0,0,0,0.8);
+    box-shadow: 4px 4px 20px rgba(0,0,0,0.9);
     padding: 2px;
     position: absolute;
     z-index: 10;
@@ -32,193 +32,273 @@
     justify-content: space-between;
     align-items: center;
     cursor: grab;
+    user-select: none;
+  }
+  
+  .title-bar:active {
+    cursor: grabbing;
   }
 
-  .content {
-    padding: 15px;
-    display: flex;
-    gap: 15px;
-    align-items: center;
-  }
+  .content { padding: 15px; display: flex; gap: 15px; align-items: center; }
 
   .character-box {
-    width: 110px;
-    height: 110px;
-    border: 2px inset #ffffff;
-    background: black;
-    overflow: hidden;
+    width: 110px; height: 110px;
+    border: 2px inset #ffffff; background: black; overflow: hidden;
+    flex-shrink: 0;
   }
-
-  .character-box video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
+  .character-box video { width: 100%; height: 100%; object-fit: cover; }
 
   .form-side { flex: 1; font-size: 13px; color: #000; }
-  
-  input { 
-    width: 100%; 
-    margin-top: 10px;
-    margin-bottom: 10px; 
-    border: 2px inset #ffffff; 
-    padding: 5px; 
-    box-sizing: border-box; 
+  input { width: 100%; margin-top: 10px; border: 2px inset #ffffff; padding: 5px; box-sizing: border-box; }
+  button { background: #c0c0c0; border: 2px solid; border-color: #ffffff #808080 #808080 #ffffff; padding: 4px 15px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+
+  #victory-screen {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: black; z-index: 99999;
+    flex-direction: column; justify-content: center; align-items: center;
   }
-  
-  button {
-    background: #c0c0c0;
-    border: 2px solid;
-    border-color: #ffffff #808080 #808080 #ffffff;
-    padding: 4px 15px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-top: 5px;
+  #victory-screen video { width: 100%; height: 100%; object-fit: contain; }
+  #victory-text {
+    position: absolute;
+    color: white;
+    font-family: "Comic Sans MS", "Comic Sans", cursive;
+    font-size: 60px;
+    text-shadow: 5px 5px #ff00ff, -5px -5px #00ffff;
+    pointer-events: none;
+    text-align: center;
+    word-wrap: break-word;
+    max-width: 90vw; 
   }
 
   @keyframes flicker {
     0% { background-color: #000; }
-    50% { background-color: #600; }
+    50% { background-color: #400; }
     100% { background-color: #000; }
   }
   .ominous-bg { animation: flicker 0.1s infinite; }
 </style>
 </head>
-<body>
+<body onload="initStartScreen()">
 
-<div class="window" id="window1" style="top: 25%; left: 35%;">
-  <div class="title-bar" onmousedown="dragElement(this.parentElement)">
-    <span>Natalia_Checker.exe</span>
-    <span style="cursor:pointer" onclick="this.parentElement.parentElement.remove()">✕</span>
-  </div>
-  <div class="content">
-    <div class="character-box">
-      <video autoplay loop muted playsinline>
-        <source src="https://images-ext-1.discordapp.net/external/K1i7s03RDkjLS8SBQoEkSwUOqusPeQhVbxpzNjfwbcs/https/media.tenor.com/hgJ-SOZgCEsAAAPo/azusa-nakano-azusa.mp4" type="video/mp4">
-      </video>
-    </div>
-    <div class="form-side" id="formContent">
-      <p style="margin:0"><b>System Initializing...</b></p>
-      <button type="button" onclick="initApp(this)">Click to Start</button>
-    </div>
-  </div>
+<div id="victory-screen">
+  <video id="victory-vid" loop playsinline>
+    <source src="https://images-ext-1.discordapp.net/external/K1i7s03RDkjLS8SBQoEkSwUOqusPeQhVbxpzNjfwbcs/https/media.tenor.com/hgJ-SOZgCEsAAAPo/azusa-nakano-azusa.mp4" type="video/mp4">
+  </video>
+  <div id="victory-text">you right!!!</div>
 </div>
 
 <script>
-  let inactivityTimer;
-  let crawlInterval;
-  let hasTriggeredOnce = false;
-  let windowCount = 1;
+  let spawnInterval;
+  let moveInterval;
+  let windowCount = 0;
+  let highestZ = 100;
+  let mayhemActive = false;
+  let windowsList = [];
+  let speedMultiplier = 1;
 
-  // --- UPDATED AUDIO ---
-  const happySound = new Audio('https://www.myinstants.com/media/sounds/anime-wow.mp3'); 
-  const buzzerSound = new Audio('https://www.myinstants.com/media/sounds/wrong-answer-buzzer.mp3');
-  const ominousSound = new Audio('https://actions.google.com/sounds/v1/horror/ambient_hum_horror.ogg');
-  ominousSound.loop = true;
+  let isDragging = false;
+  let dragTarget = null;
+  let offsetX = 0;
+  let offsetY = 0;
 
-  const yesAnswers = ["yes", "yep", "yeah", "yea", "definitely", "100 percent", "100%", "y", "of course", "sure", "yipee"];
-  const noAnswers = ["no", "nope", "nah", "never", "n"];
+  const SOUNDS = {
+    happy: 'https://www.myinstants.com/media/sounds/anime-wow.mp3',
+    buzzer: 'https://www.myinstants.com/media/sounds/wrong-answer-buzzer.mp3',
+    error: 'https://www.myinstants.com/media/sounds/windows-10-error-sound.mp3',
+    ominous: 'https://actions.google.com/sounds/v1/horror/ambient_hum_horror.ogg',
+    romantic: 'https://www.myinstants.com/media/sounds/careless-whisper-sax-short.mp3',
+    cinematic: 'https://www.myinstants.com/media/sounds/inception-button.mp3'
+  };
 
-  function initApp(btn) {
-    const side = btn.parentElement;
-    side.innerHTML = `
-      <p style="margin:0"><b>Is Natalia a good girl?</b><br>(yes or no)</p>
-      <input type="text" class="answer-input" oninput="resetTimer()" placeholder="Answer here...">
-      <button type="button" onclick="checkAnswer(this)">Submit</button>
+  const ominousLoop = new Audio(SOUNDS.ominous);
+  ominousLoop.loop = true;
+
+  function playSound(url) {
+    const sfx = new Audio(url);
+    sfx.play().catch(() => {}); 
+  }
+
+  function startDrag(e, el) {
+    bringToFront(el);
+    isDragging = true;
+    dragTarget = el;
+    const rect = el.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    document.addEventListener('mousemove', drag);
+    document.addEventListener('mouseup', stopDrag);
+  }
+
+  function drag(e) {
+    if (!isDragging || !dragTarget) return;
+    let newX = e.clientX - offsetX;
+    let newY = e.clientY - offsetY;
+    dragTarget.style.left = newX + 'px';
+    dragTarget.style.top = newY + 'px';
+    let winObj = windowsList.find(w => w.el === dragTarget);
+    if (winObj) { winObj.x = newX; winObj.y = newY; }
+  }
+
+  function stopDrag() {
+    isDragging = false;
+    dragTarget = null;
+    document.removeEventListener('mousemove', drag);
+    document.removeEventListener('mouseup', stopDrag);
+  }
+
+  function getStartHTML() {
+    return `
+      <div class="title-bar" onmousedown="startDrag(event, this.parentElement)">
+        <span>Natalia_Checker.exe</span>
+        <span style="cursor:pointer" onclick="this.parentElement.parentElement.remove()">✕</span>
+      </div>
+      <div class="content">
+        <div class="character-box">
+          <video autoplay loop muted playsinline>
+            <source src="https://images-ext-1.discordapp.net/external/K1i7s03RDkjLS8SBQoEkSwUOqusPeQhVbxpzNjfwbcs/https/media.tenor.com/hgJ-SOZgCEsAAAPo/azusa-nakano-azusa.mp4" type="video/mp4">
+          </video>
+        </div>
+        <div class="form-side" style="text-align: center;">
+          <p style="margin-top:0; font-weight:bold; font-size:14px;">System Initializing...</p>
+          <button type="button" onclick="startGame(this.parentElement.parentElement.parentElement)">Click to Start</button>
+        </div>
+      </div>
     `;
-    resetTimer();
+  }
+
+  function getWindowHTML() {
+    return `
+      <div class="title-bar" onmousedown="startDrag(event, this.parentElement)">
+        <span>Natalia_Checker.exe</span>
+        <span style="cursor:pointer" onclick="closeWin(this.parentElement.parentElement)">✕</span>
+      </div>
+      <div class="content">
+        <div class="character-box">
+          <video autoplay loop muted playsinline>
+            <source src="https://images-ext-1.discordapp.net/external/K1i7s03RDkjLS8SBQoEkSwUOqusPeQhVbxpzNjfwbcs/https/media.tenor.com/hgJ-SOZgCEsAAAPo/azusa-nakano-azusa.mp4" type="video/mp4">
+          </video>
+        </div>
+        <div class="form-side">
+          <p class="msg" style="margin:0"><b>Is Natalia a good girl?</b></p>
+          <input type="text" placeholder="yes/no">
+          <button type="button" onclick="checkAnswer(this)">Submit</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function initStartScreen() {
+    const winEl = document.createElement('div');
+    winEl.className = "window";
+    const x = (window.innerWidth - 380) / 2;
+    const y = (window.innerHeight - 200) / 2;
+    winEl.style.left = x + "px";
+    winEl.style.top = y + "px";
+    winEl.style.zIndex = ++highestZ;
+    winEl.innerHTML = getStartHTML();
+    document.body.appendChild(winEl);
+  }
+
+  function startGame(el) { el.remove(); spawnWindow(); }
+  function bringToFront(el) { highestZ++; el.style.zIndex = highestZ; }
+  function closeWin(el) {
+    el.remove();
+    windowsList = windowsList.filter(w => w.el !== el);
+    if (document.querySelectorAll('.window').length === 0) spawnWindow();
   }
 
   function checkAnswer(btn) {
     const inputField = btn.parentElement.querySelector('input');
     const input = inputField.value.toLowerCase().trim();
     
-    if (yesAnswers.includes(input)) {
-      happySound.play();
-      ominousSound.pause();
-      alert("yipeeee thankyou");
-      clearTimeout(inactivityTimer);
-      clearInterval(crawlInterval);
-      document.body.classList.remove('ominous-bg');
-    } else if (noAnswers.includes(input)) {
-      // Play LOUD BUZZER then start the ominous music
-      buzzerSound.play();
-      setTimeout(() => { ominousSound.play(); }, 500);
-      
-      document.body.classList.add('ominous-bg');
-      
-      setTimeout(() => {
-        alert("wrong. prepare to die.");
-        spawnWindow(); 
-        startCrawling(); 
-      }, 500);
-    } else {
-      alert("Answer the question correctly!");
+    if (input === "67") {
+      showVictory("6767676767676767676767676767676767676767676767 love you teddy 676767", SOUNDS.romantic);
+    } 
+    else if (input === "the lash") {
+      // Alert removed, now goes straight to the "normal thing" (victory screen)
+      showVictory("THE LAAAAYAASHHH", SOUNDS.cinematic);
+    }
+    else if (["yes", "yep", "yeah", "y", "sure", "yipee"].includes(input)) {
+      showVictory("you right!!!", SOUNDS.happy);
+    } 
+    else if (["no", "nope", "nah", "n"].includes(input)) {
+      playSound(SOUNDS.buzzer);
+      speedMultiplier *= 1.5; 
+      windowsList.forEach(w => { w.vx *= 1.5; w.vy *= 1.5; });
+      startMayhem();
+    } 
+    else {
+      playSound(SOUNDS.error);
+      alert("nuh uh thats not an answer silly try again");
+      inputField.value = ""; 
     }
   }
 
-  function resetTimer() {
-    clearTimeout(inactivityTimer);
-    const waitTime = hasTriggeredOnce ? 2000 : 4000;
-    inactivityTimer = setTimeout(spawnWindow, waitTime);
+  function showVictory(message, soundUrl) {
+    clearInterval(spawnInterval);
+    clearInterval(moveInterval);
+    ominousLoop.pause();
+    document.querySelectorAll('.window').forEach(w => w.remove());
+    document.body.classList.remove('ominous-bg');
+    
+    const vic = document.getElementById('victory-screen');
+    const vid = document.getElementById('victory-vid');
+    const textEl = document.getElementById('victory-text');
+    
+    textEl.innerText = message;
+    vic.style.display = 'flex';
+    vid.muted = false;
+    vid.play();
+    playSound(soundUrl);
+  }
+
+  function startMayhem() {
+    if (mayhemActive) return;
+    mayhemActive = true;
+    document.body.classList.add('ominous-bg');
+    ominousLoop.play();
+    clearInterval(spawnInterval);
+    spawnInterval = setInterval(spawnWindow, 500);
+    startRandomMovement();
   }
 
   function spawnWindow() {
-    hasTriggeredOnce = true;
     windowCount++;
-    const original = document.getElementById('window1');
-    if (!original) return;
+    playSound(SOUNDS.error);
+    const winEl = document.createElement('div');
+    winEl.className = "window";
+    const x = Math.random() * (window.innerWidth - 380);
+    const y = Math.random() * (window.innerHeight - 200);
+    winEl.style.left = x + "px";
+    winEl.style.top = y + "px";
+    winEl.style.zIndex = ++highestZ;
+    winEl.innerHTML = getWindowHTML();
+    document.body.appendChild(winEl);
 
-    const clone = original.cloneNode(true);
-    const randomTop = Math.floor(Math.random() * (window.innerHeight - 200));
-    const randomLeft = Math.floor(Math.random() * (window.innerWidth - 380));
-    
-    clone.id = "window" + windowCount;
-    clone.style.top = randomTop + "px";
-    clone.style.left = randomLeft + "px";
-    
-    const side = clone.querySelector('.form-side');
-    side.innerHTML = `
-      <p style="margin:0"><b>Is Natalia a good girl?</b></p>
-      <input type="text" oninput="resetTimer()">
-      <button type="button" onclick="checkAnswer(this)">Submit</button>
-    `;
-
-    document.body.appendChild(clone);
-    resetTimer();
+    windowsList.push({
+      el: winEl,
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 25 * speedMultiplier,
+      vy: (Math.random() - 0.5) * 25 * speedMultiplier 
+    });
   }
 
-  function startCrawling() {
-    if (crawlInterval) return; 
-    crawlInterval = setInterval(() => {
-      const windows = document.querySelectorAll('.window');
-      const targetY = window.innerHeight / 2 - 100;
-      const targetX = window.innerWidth / 2 - 190;
-
-      windows.forEach(win => {
-        let curTop = parseInt(win.style.top);
-        let curLeft = parseInt(win.style.left);
-        if (curTop < targetY) win.style.top = (curTop + 1) + "px";
-        if (curTop > targetY) win.style.top = (curTop - 1) + "px";
-        if (curLeft < targetX) win.style.left = (curLeft + 1) + "px";
-        if (curLeft > targetX) win.style.left = (curLeft - 1) + "px";
+  function startRandomMovement() {
+    if (moveInterval) return;
+    moveInterval = setInterval(() => {
+      windowsList.forEach(w => {
+        if (isDragging && dragTarget === w.el) return;
+        w.x += w.vx;
+        w.y += w.vy;
+        if (w.x <= 0 || w.x >= window.innerWidth - 380) { w.vx *= -1; w.x = Math.max(0, Math.min(w.x, window.innerWidth - 380)); }
+        if (w.y <= 0 || w.y >= window.innerHeight - 200) { w.vy *= -1; w.y = Math.max(0, Math.min(w.y, window.innerHeight - 200)); }
+        w.el.style.left = w.x + "px";
+        w.el.style.top = w.y + "px";
       });
     }, 30);
-  }
-
-  function dragElement(elmnt) {
-    elmnt.onmousedown = (e) => {
-      if (e.target.closest('.title-bar')) {
-        let pos3 = e.clientX, pos4 = e.clientY;
-        document.onmouseup = () => { document.onmouseup = null; document.onmousemove = null; };
-        document.onmousemove = (e) => {
-          let pos1 = pos3 - e.clientX, pos2 = pos4 - e.clientY;
-          pos3 = e.clientX; pos4 = e.clientY;
-          elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
-          elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
-        };
-      }
-    };
   }
 </script>
 
