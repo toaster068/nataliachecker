@@ -108,12 +108,20 @@
     buzzer: 'https://www.myinstants.com/media/sounds/wrong-answer-buzzer.mp3',
     error: 'https://www.myinstants.com/media/sounds/windows-10-error-sound.mp3',
     ominous: 'https://actions.google.com/sounds/v1/horror/ambient_hum_horror.ogg',
-    romantic: 'https://www.myinstants.com/media/sounds/careless-whisper-sax-short.mp3',
-    cinematic: 'https://www.myinstants.com/media/sounds/inception-button.mp3'
+    romantic: 'https://raw.githubusercontent.com/wanniethecharacter/mp3-files/main/Careless%20Whisper%20(Remastered).mp3', 
+    cinematic: 'https://archive.org/download/cringer-reviews-assets/inceptionbutton.mp3' 
   };
 
   const ominousLoop = new Audio(SOUNDS.ominous);
   ominousLoop.loop = true;
+
+  const happyAudio = new Audio(SOUNDS.happy);
+  const romanticAudio = new Audio(SOUNDS.romantic);
+  const cinematicAudio = new Audio(SOUNDS.cinematic);
+
+  const vic = document.getElementById('victory-screen');
+  const vid = document.getElementById('victory-vid');
+  const textEl = document.getElementById('victory-text');
 
   function playSound(url) {
     const sfx = new Audio(url);
@@ -203,6 +211,7 @@
 
   function startGame(el) { el.remove(); spawnWindow(); }
   function bringToFront(el) { highestZ++; el.style.zIndex = highestZ; }
+  
   function closeWin(el) {
     el.remove();
     windowsList = windowsList.filter(w => w.el !== el);
@@ -214,14 +223,13 @@
     const input = inputField.value.toLowerCase().trim();
     
     if (input === "67") {
-      showVictory("6767676767676767676767676767676767676767676767 love you teddy 676767", SOUNDS.romantic);
+      showVictory("6767676767676767676767676767676767676767676767 love you teddy 676767", romanticAudio);
     } 
     else if (input === "the lash") {
-      // Alert removed, now goes straight to the "normal thing" (victory screen)
-      showVictory("THE LAAAAYAASHHH", SOUNDS.cinematic);
+      showVictory("THE LAAAAYAASHHH", cinematicAudio);
     }
     else if (["yes", "yep", "yeah", "y", "sure", "yipee"].includes(input)) {
-      showVictory("you right!!!", SOUNDS.happy);
+      showVictory("you right!!!", happyAudio);
     } 
     else if (["no", "nope", "nah", "n"].includes(input)) {
       playSound(SOUNDS.buzzer);
@@ -236,22 +244,20 @@
     }
   }
 
-  function showVictory(message, soundUrl) {
+  function showVictory(message, audioObject) {
     clearInterval(spawnInterval);
     clearInterval(moveInterval);
     ominousLoop.pause();
     document.querySelectorAll('.window').forEach(w => w.remove());
     document.body.classList.remove('ominous-bg');
     
-    const vic = document.getElementById('victory-screen');
-    const vid = document.getElementById('victory-vid');
-    const textEl = document.getElementById('victory-text');
-    
     textEl.innerText = message;
     vic.style.display = 'flex';
     vid.muted = false;
     vid.play();
-    playSound(soundUrl);
+    
+    audioObject.currentTime = 0; 
+    audioObject.play().catch(() => {});
   }
 
   function startMayhem() {
